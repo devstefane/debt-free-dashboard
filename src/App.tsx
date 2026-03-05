@@ -8,7 +8,9 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { FinanceProvider } from "@/contexts/FinanceContext";
 import Index from "./pages/Index";
 import Despesas from "./pages/Despesas";
+import CartaoCredito from "./pages/CartaoCredito";
 import Visualizacao from "./pages/Visualizacao";
+import Solucoes from "./pages/Solucoes";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,7 +34,9 @@ const App = () => (
                   <Routes>
                     <Route path="/" element={<Index />} />
                     <Route path="/despesas" element={<Despesas />} />
+                    <Route path="/cartao" element={<CartaoCredito />} />
                     <Route path="/visualizacao" element={<Visualizacao />} />
+                    <Route path="/solucoes" element={<Solucoes />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </main>
