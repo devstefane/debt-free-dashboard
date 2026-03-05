@@ -1,22 +1,20 @@
 import { useState } from 'react';
 import { MonthNavigator } from '@/components/finance/MonthNavigator';
-import { SummaryCards } from '@/components/finance/SummaryCards';
-import { FinanceCharts } from '@/components/finance/FinanceCharts';
+import { TransactionManager } from '@/components/finance/TransactionManager';
 import { getMonthKey } from '@/types/finance';
 
-const Index = () => {
+const Despesas = () => {
   const [currentMonth, setCurrentMonth] = useState(() => getMonthKey(new Date()));
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <h1 className="text-2xl font-bold">Dashboard Financeiro</h1>
+        <h1 className="text-2xl font-bold">Gerenciar Despesas</h1>
         <MonthNavigator currentMonth={currentMonth} onMonthChange={setCurrentMonth} />
       </div>
-      <SummaryCards currentMonth={currentMonth} />
-      <FinanceCharts currentMonth={currentMonth} />
+      <TransactionManager currentMonth={currentMonth} />
     </div>
   );
 };
 
-export default Index;
+export default Despesas;
