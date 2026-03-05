@@ -1,4 +1,4 @@
-import { LayoutDashboard, PlusCircle, BarChart3, Wallet } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, BarChart3, Wallet, CreditCard, Lightbulb } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import {
   Sidebar,
@@ -16,7 +16,9 @@ import {
 const navItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
   { title: 'Despesas', url: '/despesas', icon: PlusCircle },
+  { title: 'Cartão de Crédito', url: '/cartao', icon: CreditCard },
   { title: 'Visualização', url: '/visualizacao', icon: BarChart3 },
+  { title: 'Soluções', url: '/solucoes', icon: Lightbulb },
 ];
 
 export function AppSidebar() {
