@@ -1,36 +1,34 @@
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useFinance, getMonthTransactions, getMonthIncome } from '@/contexts/FinanceContext';
+import { useFinance, getMonthBills, getMonthIncome } from '@/contexts/FinanceContext';
 
 interface FinanceChartsProps {
   currentMonth: string;
 }
 
 const PIE_COLORS = [
-  'hsl(217, 91%, 60%)',  // fixed
-  'hsl(38, 92%, 50%)',   // lifestyle
-  'hsl(280, 65%, 60%)',  // installment
+  'hsl(217, 91%, 60%)',
+  'hsl(38, 92%, 50%)',
+  'hsl(280, 65%, 60%)',
 ];
 
-const categoryLabels: Record<string, string> = {
+const typeLabels: Record<string, string> = {
   fixed: 'Fixos',
-  lifestyle: 'Não Essenciais',
+  variable: 'Variáveis',
   installment: 'Parcelados',
 };
 
 export function FinanceCharts({ currentMonth }: FinanceChartsProps) {
   const { state } = useFinance();
   const income = getMonthIncome(state, currentMonth);
-  const transactions = getMonthTransactions(state, currentMonth);
+  const bills = getMonthBills(state, currentMonth);
 
-  const byCategory = ['fixed', 'lifestyle', 'installment'].map(cat => {
-    const total = transactions
-      .filter(t => t.category === cat)
-      .reduce((s, t) => s + (t.category === 'installment' && t.installments ? t.installments.totalAmount / t.installments.total : t.amount), 0);
-    return { name: categoryLabels[cat], value: Math.round(total * 100) / 100 };
+  const byType = ['fixed', 'variable', 'installment'].map(type => {
+    const total = bills.filter(b => b.bill.type === type).reduce((s, b) => s + b.amount, 0);
+    return { name: typeLabels[type], value: Math.round(total * 100) / 100 };
   }).filter(d => d.value > 0);
 
-  const totalExpenses = byCategory.reduce((s, d) => s + d.value, 0);
+  const totalExpenses = byType.reduce((s, d) => s + d.value, 0);
 
   const barData = [
     { name: 'Renda', value: income, fill: 'hsl(142, 71%, 45%)' },
@@ -44,23 +42,15 @@ export function FinanceCharts({ currentMonth }: FinanceChartsProps) {
           <CardTitle className="text-base">Composição de Gastos</CardTitle>
         </CardHeader>
         <CardContent>
-          {byCategory.length === 0 ? (
+          {byType.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-12">Sem dados</p>
           ) : (
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
-                <Pie
-                  data={byCategory}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={90}
-                  paddingAngle={4}
-                  dataKey="value"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                >
-                  {byCategory.map((_, i) => (
-                    <Cell key={i} fill={PIE_COLORS[['Fixos', 'Não Essenciais', 'Parcelados'].indexOf(byCategory[i].name)] || PIE_COLORS[0]} />
+                <Pie data={byType} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={4} dataKey="value"
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                  {byType.map((entry, i) => (
+                    <Cell key={i} fill={PIE_COLORS[['Fixos', 'Variáveis', 'Parcelados'].indexOf(entry.name)] || PIE_COLORS[0]} />
                   ))}
                 </Pie>
                 <Tooltip

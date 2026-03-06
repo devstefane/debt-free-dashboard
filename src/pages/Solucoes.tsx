@@ -1,15 +1,14 @@
-import { useState, useMemo } from 'react';
-import { Lightbulb, TrendingDown, ArrowDownUp, Calculator, AlertTriangle, CheckCircle2, Flame } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { useState } from 'react';
+import { Lightbulb, Calculator, ArrowDownUp, AlertTriangle, TrendingUp } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useFinance, getMonthTransactions, getMonthIncome } from '@/contexts/FinanceContext';
-import { getMonthKey, formatMonthLabel, addMonths } from '@/types/finance';
+import { useFinance, getMonthBills, getMonthIncome, type MonthBillView } from '@/contexts/FinanceContext';
+import { getMonthKey } from '@/types/finance';
+import type { FinanceState } from '@/types/finance';
 import { cn } from '@/lib/utils';
-
-const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 const Solucoes = () => {
   const { state } = useFinance();
@@ -17,124 +16,54 @@ const Solucoes = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Lightbulb className="h-6 w-6 text-accent" />
-        <h1 className="text-2xl font-bold">Soluções Inteligentes</h1>
-      </div>
-
-      <Tabs defaultValue="tips" className="space-y-4">
-        <TabsList className="grid grid-cols-3 w-full max-w-md">
-          <TabsTrigger value="tips">Dicas</TabsTrigger>
-          <TabsTrigger value="simulator">Simulador</TabsTrigger>
-          <TabsTrigger value="priority">Priorização</TabsTrigger>
+      <h1 className="text-2xl font-bold">Soluções Inteligentes</h1>
+      <Tabs defaultValue="dicas">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="dicas" className="gap-2"><Lightbulb className="h-4 w-4" />Dicas</TabsTrigger>
+          <TabsTrigger value="simulador" className="gap-2"><Calculator className="h-4 w-4" />Simulador</TabsTrigger>
+          <TabsTrigger value="priorizacao" className="gap-2"><ArrowDownUp className="h-4 w-4" />Priorização</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="tips">
-          <SmartTips currentMonth={currentMonth} />
-        </TabsContent>
-        <TabsContent value="simulator">
-          <DebtSimulator />
-        </TabsContent>
-        <TabsContent value="priority">
-          <DebtPriority currentMonth={currentMonth} />
-        </TabsContent>
+        <TabsContent value="dicas"><DicasTab state={state} currentMonth={currentMonth} /></TabsContent>
+        <TabsContent value="simulador"><SimuladorTab /></TabsContent>
+        <TabsContent value="priorizacao"><PriorizacaoTab state={state} currentMonth={currentMonth} /></TabsContent>
       </Tabs>
     </div>
   );
 };
 
-function SmartTips({ currentMonth }: { currentMonth: string }) {
-  const { state } = useFinance();
+function DicasTab({ state, currentMonth }: { state: FinanceState; currentMonth: string }) {
   const income = getMonthIncome(state, currentMonth);
-  const transactions = getMonthTransactions(state, currentMonth);
-  const cardTotal = state.creditCards.reduce((s, c) => s + c.invoiceAmount, 0);
+  const bills = getMonthBills(state, currentMonth);
+  const totalExpenses = bills.reduce((s, b) => s + b.amount, 0);
+  const fixedTotal = bills.filter(b => b.bill.type === 'fixed').reduce((s, b) => s + b.amount, 0);
+  const pendingCount = bills.filter(b => !b.paid).length;
 
-  const tips = useMemo(() => {
-    const result: { type: 'danger' | 'warning' | 'success'; icon: typeof AlertTriangle; text: string }[] = [];
+  const tips: { icon: typeof AlertTriangle; title: string; desc: string; type: string }[] = [];
 
-    const fixedTotal = transactions.filter(t => t.category === 'fixed').reduce((s, t) => s + t.amount, 0);
-    const lifestyleTotal = transactions.filter(t => t.category === 'lifestyle').reduce((s, t) => s + t.amount, 0);
-    const installmentTotal = transactions
-      .filter(t => t.category === 'installment')
-      .reduce((s, t) => s + (t.installments ? t.installments.totalAmount / t.installments.total : t.amount), 0);
-    const totalExpenses = fixedTotal + lifestyleTotal + installmentTotal + cardTotal;
-
-    if (income === 0) {
-      result.push({ type: 'warning', icon: AlertTriangle, text: 'Defina sua renda mensal para receber dicas personalizadas.' });
-      return result;
-    }
-
-    const committed = ((fixedTotal + installmentTotal + cardTotal) / income) * 100;
-
-    if (committed > 80) {
-      result.push({ type: 'danger', icon: Flame, text: `🚨 Sua renda está ${committed.toFixed(0)}% comprometida com fixos e parcelas. Considere renegociar dívidas urgentemente.` });
-    } else if (committed > 60) {
-      result.push({ type: 'warning', icon: AlertTriangle, text: `⚠️ ${committed.toFixed(0)}% da sua renda já está comprometida. Evite novos parcelamentos.` });
-    } else {
-      result.push({ type: 'success', icon: CheckCircle2, text: `✅ Saúde financeira boa! ${committed.toFixed(0)}% comprometido. Continue assim.` });
-    }
-
-    if (lifestyleTotal > 0 && income > 0) {
-      const lifestylePercent = (lifestyleTotal / income) * 100;
-      if (lifestylePercent > 30) {
-        result.push({
-          type: 'warning',
-          icon: TrendingDown,
-          text: `Gastos não essenciais representam ${lifestylePercent.toFixed(0)}% da renda (${fmt(lifestyleTotal)}). Cortando pela metade, você economizaria ${fmt(lifestyleTotal / 2)}/mês.`,
-        });
-      }
-    }
-
-    if (totalExpenses > income) {
-      result.push({
-        type: 'danger',
-        icon: AlertTriangle,
-        text: `Suas despesas (${fmt(totalExpenses)}) superam a renda (${fmt(income)}) em ${fmt(totalExpenses - income)}. Você está se endividando!`,
-      });
-    }
-
-    const balance = income - totalExpenses;
-    if (balance > 0 && balance < income * 0.1) {
-      result.push({
-        type: 'warning',
-        icon: AlertTriangle,
-        text: `Sua margem de segurança é de apenas ${fmt(balance)} (${((balance / income) * 100).toFixed(0)}%). Ideal: pelo menos 20%.`,
-      });
-    }
-
-    // Check future months for installment pile-up
-    let maxFutureCommit = 0;
-    let worstMonth = '';
-    for (let i = 1; i <= 6; i++) {
-      const futureMonth = addMonths(currentMonth, i);
-      const futureTx = getMonthTransactions(state, futureMonth);
-      const futureTotal = futureTx.reduce((s, t) => s + t.amount, 0) + state.creditCards.reduce((s, c) => s + c.invoiceAmount, 0);
-      if (futureTotal > maxFutureCommit) {
-        maxFutureCommit = futureTotal;
-        worstMonth = futureMonth;
-      }
-    }
-    if (maxFutureCommit > 0 && income > 0 && (maxFutureCommit / income) > 0.7) {
-      result.push({
-        type: 'warning',
-        icon: AlertTriangle,
-        text: `Atenção: em ${formatMonthLabel(worstMonth)}, suas despesas projetadas somam ${fmt(maxFutureCommit)} (${((maxFutureCommit / income) * 100).toFixed(0)}% da renda atual).`,
-      });
-    }
-
-    return result;
-  }, [state, currentMonth, income, transactions, cardTotal]);
-
-  const iconColor = { danger: 'text-destructive', warning: 'text-accent', success: 'text-primary' };
-  const borderColor = { danger: 'border-destructive/30', warning: 'border-accent/30', success: 'border-primary/30' };
+  if (income > 0 && totalExpenses / income > 0.8) {
+    tips.push({ icon: AlertTriangle, title: 'Gastos elevados', desc: `Suas despesas representam ${((totalExpenses / income) * 100).toFixed(0)}% da renda. Revise contas variáveis.`, type: 'danger' });
+  }
+  if (pendingCount > 0) {
+    tips.push({ icon: AlertTriangle, title: 'Contas pendentes', desc: `Você tem ${pendingCount} conta(s) não paga(s) este mês.`, type: 'warning' });
+  }
+  if (income > 0 && fixedTotal / income > 0.5) {
+    tips.push({ icon: TrendingUp, title: 'Fixos acima de 50%', desc: 'Considere renegociar contratos fixos para liberar margem.', type: 'warning' });
+  }
+  if (tips.length === 0) {
+    tips.push({ icon: Lightbulb, title: 'Tudo certo!', desc: 'Suas finanças estão em bom estado neste mês.', type: 'healthy' });
+  }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 mt-4">
       {tips.map((tip, i) => (
-        <Card key={i} className={cn("border", borderColor[tip.type])}>
-          <CardContent className="flex items-start gap-3 py-4">
-            <tip.icon className={cn("h-5 w-5 mt-0.5 shrink-0", iconColor[tip.type])} />
-            <p className="text-sm">{tip.text}</p>
+        <Card key={i} className={cn("border-l-4", tip.type === 'danger' ? 'border-l-destructive' : tip.type === 'warning' ? 'border-l-accent' : 'border-l-primary')}>
+          <CardContent className="flex items-start gap-3 p-4">
+            <tip.icon className={cn("h-5 w-5 mt-0.5", tip.type === 'danger' ? 'text-destructive' : tip.type === 'warning' ? 'text-accent' : 'text-primary')} />
+            <div>
+              <p className="font-medium">{tip.title}</p>
+              <p className="text-sm text-muted-foreground">{tip.desc}</p>
+            </div>
           </CardContent>
         </Card>
       ))}
@@ -142,219 +71,97 @@ function SmartTips({ currentMonth }: { currentMonth: string }) {
   );
 }
 
-function DebtSimulator() {
-  const [debtAmount, setDebtAmount] = useState('');
-  const [monthlyPayment, setMonthlyPayment] = useState('');
-  const [interestRate, setInterestRate] = useState('');
+function SimuladorTab() {
+  const [debt, setDebt] = useState('');
+  const [monthly, setMonthly] = useState('');
+  const [rate, setRate] = useState('');
+  const [result, setResult] = useState<{ months: number; totalPaid: number } | null>(null);
 
-  const simulation = useMemo(() => {
-    const debt = parseFloat(debtAmount.replace(',', '.'));
-    const payment = parseFloat(monthlyPayment.replace(',', '.'));
-    const rate = parseFloat(interestRate.replace(',', '.')) / 100;
+  const simulate = () => {
+    const d = parseFloat(debt.replace(',', '.'));
+    const m = parseFloat(monthly.replace(',', '.'));
+    const r = parseFloat(rate.replace(',', '.')) / 100;
+    if (isNaN(d) || isNaN(m) || m <= 0) return;
 
-    if (isNaN(debt) || isNaN(payment) || debt <= 0 || payment <= 0) return null;
-
-    const months: { month: number; balance: number; paid: number }[] = [];
-    let balance = debt;
+    let remaining = d;
+    let months = 0;
     let totalPaid = 0;
-    let monthCount = 0;
-    const maxMonths = 360;
-
-    while (balance > 0 && monthCount < maxMonths) {
-      const interest = balance * rate;
-      balance += interest;
-      const actualPayment = Math.min(payment, balance);
-      balance -= actualPayment;
-      totalPaid += actualPayment;
-      monthCount++;
-      months.push({ month: monthCount, balance: Math.max(0, balance), paid: totalPaid });
-
-      if (rate > 0 && payment <= debt * rate) break; // Will never pay off
+    while (remaining > 0 && months < 600) {
+      remaining *= (1 + r);
+      const payment = Math.min(m, remaining);
+      remaining -= payment;
+      totalPaid += payment;
+      months++;
     }
-
-    const neverPaysOff = balance > 0;
-
-    return { months, totalPaid, monthCount, neverPaysOff, totalInterest: totalPaid - debt };
-  }, [debtAmount, monthlyPayment, interestRate]);
+    setResult({ months, totalPaid: Math.round(totalPaid * 100) / 100 });
+  };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 mt-4">
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Calculator className="h-4 w-4 text-primary" /> Simulador de Quitação
-          </CardTitle>
-          <CardDescription>Descubra quanto tempo levará para quitar uma dívida</CardDescription>
-        </CardHeader>
+        <CardHeader><CardTitle className="text-base">Simulador de Quitação</CardTitle></CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <Label className="text-xs text-muted-foreground">Valor da Dívida</Label>
-              <Input placeholder="Ex: 5000" value={debtAmount} onChange={e => setDebtAmount(e.target.value)} />
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Pagamento Mensal</Label>
-              <Input placeholder="Ex: 500" value={monthlyPayment} onChange={e => setMonthlyPayment(e.target.value)} />
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Juros Mensal (%)</Label>
-              <Input placeholder="Ex: 2 (0 se não houver)" value={interestRate} onChange={e => setInterestRate(e.target.value)} />
-            </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div><Label className="text-xs text-muted-foreground">Dívida Total</Label><Input placeholder="10000" value={debt} onChange={e => setDebt(e.target.value)} /></div>
+            <div><Label className="text-xs text-muted-foreground">Aporte Mensal</Label><Input placeholder="500" value={monthly} onChange={e => setMonthly(e.target.value)} /></div>
+            <div><Label className="text-xs text-muted-foreground">Juros (%/mês)</Label><Input placeholder="1.5" value={rate} onChange={e => setRate(e.target.value)} /></div>
           </div>
+          <Button onClick={simulate} className="w-full">Simular</Button>
+          {result && (
+            <div className="p-4 rounded-lg bg-muted/50 space-y-1">
+              <p className="text-sm">Tempo: <strong>{result.months} meses</strong> ({(result.months / 12).toFixed(1)} anos)</p>
+              <p className="text-sm">Total pago: <strong>R$ {result.totalPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></p>
+            </div>
+          )}
         </CardContent>
       </Card>
-
-      {simulation && (
-        <Card className={cn("border", simulation.neverPaysOff ? "border-destructive" : "border-primary")}>
-          <CardContent className="py-4 space-y-3">
-            {simulation.neverPaysOff ? (
-              <div className="text-center space-y-2">
-                <Flame className="h-8 w-8 text-destructive mx-auto" />
-                <p className="text-destructive font-semibold">O pagamento mensal não cobre os juros! Aumente o valor ou renegocie.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <p className="text-2xl font-bold font-mono text-primary">{simulation.monthCount}</p>
-                  <p className="text-xs text-muted-foreground">meses para quitar</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold font-mono text-foreground">{fmt(simulation.totalPaid)}</p>
-                  <p className="text-xs text-muted-foreground">total pago</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold font-mono text-destructive">{fmt(simulation.totalInterest)}</p>
-                  <p className="text-xs text-muted-foreground">juros pagos</p>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
 
-function DebtPriority({ currentMonth }: { currentMonth: string }) {
-  const { state } = useFinance();
-  const [method, setMethod] = useState<'avalanche' | 'snowball'>('avalanche');
+function PriorizacaoTab({ state, currentMonth }: { state: FinanceState; currentMonth: string }) {
+  const bills = getMonthBills(state, currentMonth);
+  const unpaid = bills.filter(b => !b.paid && b.amount > 0);
 
-  // Collect all installment debts
-  const debts = useMemo(() => {
-    const result: { id: string; description: string; remaining: number; monthlyPayment: number; remainingMonths: number; source: string }[] = [];
-
-    // From transactions
-    Object.values(state.months).forEach(md => {
-      md.transactions.forEach(tx => {
-        if (tx.installments) {
-          const remaining = tx.installments.total - tx.installments.current + 1;
-          if (remaining > 0) {
-            result.push({
-              id: tx.id,
-              description: tx.description,
-              remaining: tx.amount * remaining,
-              monthlyPayment: tx.amount,
-              remainingMonths: remaining,
-              source: 'Despesa',
-            });
-          }
-        }
-      });
-    });
-
-    // Credit cards as debts (using invoice amount)
-    state.creditCards.forEach(card => {
-      if (card.invoiceAmount > 0) {
-        result.push({
-          id: card.id,
-          description: card.name,
-          remaining: card.invoiceAmount,
-          monthlyPayment: card.invoiceAmount,
-          remainingMonths: 1,
-          source: 'Cartão',
-        });
-      }
-    });
-
-    // Sort based on method
-    if (method === 'snowball') {
-      result.sort((a, b) => a.remaining - b.remaining); // smallest first
-    } else {
-      result.sort((a, b) => b.monthlyPayment - a.monthlyPayment); // highest payment first (proxy for highest "interest")
-    }
-
-    return result;
-  }, [state, method]);
+  const snowball = [...unpaid].sort((a, b) => a.amount - b.amount);
+  const avalanche = [...unpaid].sort((a, b) => b.amount - a.amount);
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <ArrowDownUp className="h-4 w-4 text-primary" /> Priorização de Dívidas
-          </CardTitle>
-          <CardDescription>Qual dívida pagar primeiro para se livrar mais rápido</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-2">
-            <Button
-              variant={method === 'snowball' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setMethod('snowball')}
-            >
-              🏔️ Bola de Neve
-            </Button>
-            <Button
-              variant={method === 'avalanche' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setMethod('avalanche')}
-            >
-              🔥 Avalanche
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            {method === 'snowball'
-              ? 'Pague as menores primeiro para ganhar motivação e eliminar dívidas rapidamente.'
-              : 'Pague as de maior parcela primeiro para economizar mais a longo prazo.'}
-          </p>
-        </CardContent>
-      </Card>
-
-      {debts.length === 0 ? (
+    <div className="space-y-4 mt-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
-            <CheckCircle2 className="h-8 w-8 mx-auto mb-2 text-primary" />
-            Nenhuma dívida parcelada encontrada. Parabéns! 🎉
+          <CardHeader><CardTitle className="text-base">❄️ Bola de Neve</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">Pague as menores primeiro para ganhar motivação</p>
+            {snowball.length === 0 ? <p className="text-sm text-muted-foreground">Sem contas pendentes</p> : (
+              <div className="space-y-2">
+                {snowball.map((b, i) => (
+                  <div key={b.bill.id} className="flex justify-between p-2 rounded bg-muted/50">
+                    <span className="text-sm">{i + 1}. {b.bill.description}</span>
+                    <span className="text-sm font-mono">R$ {b.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
-      ) : (
-        <div className="space-y-2">
-          {debts.map((debt, idx) => (
-            <Card key={debt.id} className={cn(idx === 0 && "border-primary border-2")}>
-              <CardContent className="flex items-center justify-between py-3">
-                <div className="flex items-center gap-3">
-                  <span className={cn(
-                    "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold",
-                    idx === 0 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                  )}>
-                    {idx + 1}
-                  </span>
-                  <div>
-                    <p className="font-medium text-sm">{debt.description}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {debt.source} · {debt.remainingMonths} meses restantes
-                    </p>
+        <Card>
+          <CardHeader><CardTitle className="text-base">🔥 Avalanche</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">Pague as maiores primeiro para economizar no total</p>
+            {avalanche.length === 0 ? <p className="text-sm text-muted-foreground">Sem contas pendentes</p> : (
+              <div className="space-y-2">
+                {avalanche.map((b, i) => (
+                  <div key={b.bill.id} className="flex justify-between p-2 rounded bg-muted/50">
+                    <span className="text-sm">{i + 1}. {b.bill.description}</span>
+                    <span className="text-sm font-mono">R$ {b.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                   </div>
-                </div>
-                <div className="text-right">
-                  <p className="font-mono font-semibold text-sm">{fmt(debt.monthlyPayment)}/mês</p>
-                  <p className="text-xs text-muted-foreground">Restante: {fmt(debt.remaining)}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
