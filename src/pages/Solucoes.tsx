@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useFinance, getMonthTransactions, getMonthIncome, getCardExpensesForMonth } from '@/contexts/FinanceContext';
+import { useFinance, getMonthTransactions, getMonthIncome } from '@/contexts/FinanceContext';
 import { getMonthKey, formatMonthLabel, addMonths } from '@/types/finance';
 import { cn } from '@/lib/utils';
 
@@ -47,7 +47,7 @@ function SmartTips({ currentMonth }: { currentMonth: string }) {
   const { state } = useFinance();
   const income = getMonthIncome(state, currentMonth);
   const transactions = getMonthTransactions(state, currentMonth);
-  const cardExpenses = getCardExpensesForMonth(state, currentMonth);
+  const cardTotal = state.creditCards.reduce((s, c) => s + c.invoiceAmount, 0);
 
   const tips = useMemo(() => {
     const result: { type: 'danger' | 'warning' | 'success'; icon: typeof AlertTriangle; text: string }[] = [];
@@ -57,7 +57,6 @@ function SmartTips({ currentMonth }: { currentMonth: string }) {
     const installmentTotal = transactions
       .filter(t => t.category === 'installment')
       .reduce((s, t) => s + (t.installments ? t.installments.totalAmount / t.installments.total : t.amount), 0);
-    const cardTotal = cardExpenses.reduce((s, e) => s + e.amount, 0);
     const totalExpenses = fixedTotal + lifestyleTotal + installmentTotal + cardTotal;
 
     if (income === 0) {
@@ -109,8 +108,7 @@ function SmartTips({ currentMonth }: { currentMonth: string }) {
     for (let i = 1; i <= 6; i++) {
       const futureMonth = addMonths(currentMonth, i);
       const futureTx = getMonthTransactions(state, futureMonth);
-      const futureCards = getCardExpensesForMonth(state, futureMonth);
-      const futureTotal = futureTx.reduce((s, t) => s + t.amount, 0) + futureCards.reduce((s, e) => s + e.amount, 0);
+      const futureTotal = futureTx.reduce((s, t) => s + t.amount, 0) + state.creditCards.reduce((s, c) => s + c.invoiceAmount, 0);
       if (futureTotal > maxFutureCommit) {
         maxFutureCommit = futureTotal;
         worstMonth = futureMonth;
@@ -125,7 +123,7 @@ function SmartTips({ currentMonth }: { currentMonth: string }) {
     }
 
     return result;
-  }, [state, currentMonth, income, transactions, cardExpenses]);
+  }, [state, currentMonth, income, transactions, cardTotal]);
 
   const iconColor = { danger: 'text-destructive', warning: 'text-accent', success: 'text-primary' };
   const borderColor = { danger: 'border-destructive/30', warning: 'border-accent/30', success: 'border-primary/30' };
@@ -264,21 +262,17 @@ function DebtPriority({ currentMonth }: { currentMonth: string }) {
       });
     });
 
-    // From credit card expenses
-    state.creditCardExpenses.forEach(exp => {
-      if (exp.installments) {
-        const remaining = exp.installments.total - exp.installments.current + 1;
-        if (remaining > 0) {
-          const card = state.creditCards.find(c => c.id === exp.cardId);
-          result.push({
-            id: exp.id,
-            description: exp.description,
-            remaining: exp.amount * remaining,
-            monthlyPayment: exp.amount,
-            remainingMonths: remaining,
-            source: card ? card.name : 'Cartão',
-          });
-        }
+    // Credit cards as debts (using invoice amount)
+    state.creditCards.forEach(card => {
+      if (card.invoiceAmount > 0) {
+        result.push({
+          id: card.id,
+          description: card.name,
+          remaining: card.invoiceAmount,
+          monthlyPayment: card.invoiceAmount,
+          remainingMonths: 1,
+          source: 'Cartão',
+        });
       }
     });
 
