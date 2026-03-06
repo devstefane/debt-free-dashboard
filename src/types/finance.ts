@@ -17,24 +17,10 @@ export interface Transaction {
 export interface CreditCard {
   id: string;
   name: string;
-  limit: number;
-  closingDay: number;
+  invoiceAmount: number;
   dueDay: number;
 }
 
-export interface CreditCardExpense {
-  id: string;
-  cardId: string;
-  description: string;
-  amount: number;
-  /** YYYY-MM of the first invoice */
-  startMonth: string;
-  installments?: {
-    total: number;
-    current: number;
-    totalAmount: number;
-  };
-}
 
 export interface MonthData {
   /** YYYY-MM */
@@ -46,7 +32,6 @@ export interface MonthData {
 export interface FinanceState {
   months: Record<string, MonthData>;
   creditCards: CreditCard[];
-  creditCardExpenses: CreditCardExpense[];
 }
 
 export const MONTH_NAMES = [

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
-import type { FinanceState, MonthData, Transaction, CreditCard, CreditCardExpense } from '@/types/finance';
+import type { FinanceState, MonthData, Transaction, CreditCard } from '@/types/finance';
 import { addMonths } from '@/types/finance';
 
 const STORAGE_KEY = 'finance-dashboard-data';
@@ -12,11 +12,10 @@ function loadState(): FinanceState {
       return {
         months: parsed.months || {},
         creditCards: parsed.creditCards || [],
-        creditCardExpenses: parsed.creditCardExpenses || [],
       };
     }
   } catch {}
-  return { months: {}, creditCards: [], creditCardExpenses: [] };
+  return { months: {}, creditCards: [] };
 }
 
 function saveState(state: FinanceState) {
@@ -29,8 +28,6 @@ type Action =
   | { type: 'REMOVE_TRANSACTION'; month: string; transactionId: string }
   | { type: 'ADD_CREDIT_CARD'; card: CreditCard }
   | { type: 'REMOVE_CREDIT_CARD'; cardId: string }
-  | { type: 'ADD_CARD_EXPENSE'; expense: CreditCardExpense }
-  | { type: 'REMOVE_CARD_EXPENSE'; expenseId: string }
   | { type: 'CLEAR_ALL' };
 
 function ensureMonth(state: FinanceState, month: string): MonthData {
@@ -81,14 +78,9 @@ function reducer(state: FinanceState, action: Action): FinanceState {
       return {
         ...state,
         creditCards: state.creditCards.filter(c => c.id !== action.cardId),
-        creditCardExpenses: state.creditCardExpenses.filter(e => e.cardId !== action.cardId),
       };
-    case 'ADD_CARD_EXPENSE':
-      return { ...state, creditCardExpenses: [...state.creditCardExpenses, action.expense] };
-    case 'REMOVE_CARD_EXPENSE':
-      return { ...state, creditCardExpenses: state.creditCardExpenses.filter(e => e.id !== action.expenseId) };
     case 'CLEAR_ALL':
-      return { months: {}, creditCards: [], creditCardExpenses: [] };
+      return { months: {}, creditCards: [] };
     default:
       return state;
   }
@@ -122,35 +114,6 @@ export function getMonthTransactions(state: FinanceState, targetMonth: string): 
   return [...directTransactions, ...projectedInstallments];
 }
 
-/** Get credit card expenses for a given month, including projected installments */
-export function getCardExpensesForMonth(state: FinanceState, targetMonth: string, cardId?: string): CreditCardExpense[] {
-  const result: CreditCardExpense[] = [];
-
-  state.creditCardExpenses.forEach(expense => {
-    if (cardId && expense.cardId !== cardId) return;
-
-    if (!expense.installments) {
-      if (expense.startMonth === targetMonth) result.push(expense);
-      return;
-    }
-
-    const { total, current } = expense.installments;
-    const [sy, sm] = expense.startMonth.split('-').map(Number);
-    const [ty, tm] = targetMonth.split('-').map(Number);
-    const diff = (ty - sy) * 12 + (tm - sm);
-    const projectedCurrent = current + diff;
-
-    if (projectedCurrent >= current && projectedCurrent <= total) {
-      result.push({
-        ...expense,
-        id: diff === 0 ? expense.id : `${expense.id}-proj-${targetMonth}`,
-        installments: { ...expense.installments, current: projectedCurrent },
-      });
-    }
-  });
-
-  return result;
-}
 
 export function getMonthIncome(state: FinanceState, month: string): number {
   return state.months[month]?.income || 0;
@@ -163,8 +126,6 @@ interface FinanceContextValue {
   removeTransaction: (month: string, txId: string) => void;
   addCreditCard: (card: CreditCard) => void;
   removeCreditCard: (cardId: string) => void;
-  addCardExpense: (expense: CreditCardExpense) => void;
-  removeCardExpense: (expenseId: string) => void;
   clearAll: () => void;
 }
 
@@ -192,12 +153,6 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const removeCreditCard = useCallback((cardId: string) => {
     dispatch({ type: 'REMOVE_CREDIT_CARD', cardId });
   }, []);
-  const addCardExpense = useCallback((expense: CreditCardExpense) => {
-    dispatch({ type: 'ADD_CARD_EXPENSE', expense });
-  }, []);
-  const removeCardExpense = useCallback((expenseId: string) => {
-    dispatch({ type: 'REMOVE_CARD_EXPENSE', expenseId });
-  }, []);
   const clearAll = useCallback(() => {
     dispatch({ type: 'CLEAR_ALL' });
   }, []);
@@ -205,7 +160,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   return (
     <FinanceContext.Provider value={{
       state, setIncome, addTransaction, removeTransaction,
-      addCreditCard, removeCreditCard, addCardExpense, removeCardExpense, clearAll,
+      addCreditCard, removeCreditCard, clearAll,
     }}>
       {children}
     </FinanceContext.Provider>
