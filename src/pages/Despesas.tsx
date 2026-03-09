@@ -8,11 +8,16 @@ const Despesas = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <h1 className="text-2xl font-bold">Gerenciar Despesas</h1>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-slate-300">FinControl</p>
+          <h1 className="text-4xl font-semibold mt-2">Despesas</h1>
+        </div>
         <MonthNavigator currentMonth={currentMonth} onMonthChange={setCurrentMonth} />
       </div>
-      <TransactionManager currentMonth={currentMonth} />
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+        <TransactionManager currentMonth={currentMonth} />
+      </div>
     </div>
   );
 };

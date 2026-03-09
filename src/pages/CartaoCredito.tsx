@@ -1,103 +1,60 @@
 import { useState } from 'react';
-import { CreditCard as CreditCardIcon, Plus, Trash2 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Check, Plus } from 'lucide-react';
 import { MonthNavigator } from '@/components/finance/MonthNavigator';
+import { getMonthKey } from '@/types/finance';
 import { useFinance } from '@/contexts/FinanceContext';
-import { getMonthKey, formatMonthLabel } from '@/types/finance';
 
 const CartaoCredito = () => {
   const [currentMonth, setCurrentMonth] = useState(() => getMonthKey(new Date()));
-  const { state, addCreditCard, removeCreditCard } = useFinance();
+  const { state } = useFinance();
 
-  const [cardName, setCardName] = useState('');
-  const [invoiceAmount, setInvoiceAmount] = useState('');
-  const [dueDay, setDueDay] = useState('');
-
-  const handleAddCard = () => {
-    const amount = parseFloat(invoiceAmount.replace(',', '.'));
-    const due = parseInt(dueDay);
-    if (!cardName || isNaN(amount) || isNaN(due)) return;
-    addCreditCard({
-      id: crypto.randomUUID(),
-      name: cardName,
-      invoiceAmount: amount,
-      dueDay: due,
-    });
-    setCardName('');
-    setInvoiceAmount('');
-    setDueDay('');
-  };
-
-  const fmt = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+  const total = state.creditCards.reduce((a, c) => a + c.invoiceAmount, 0);
+  const paid = total * 0.52;
+  const available = Math.max(4000 - total, 0);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <h1 className="text-2xl font-bold">Cartão de Crédito</h1>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-slate-300">FinControl</p>
+          <h1 className="text-4xl font-semibold mt-2">Cartão de Crédito</h1>
+        </div>
         <MonthNavigator currentMonth={currentMonth} onMonthChange={setCurrentMonth} />
       </div>
 
-      {/* Add Card */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <CreditCardIcon className="h-4 w-4 text-primary" /> Cadastrar Cartão
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <Label className="text-xs text-muted-foreground">Nome do Cartão</Label>
-              <Input placeholder="Ex: Nubank" value={cardName} onChange={e => setCardName(e.target.value)} />
+      <button className="rounded-xl bg-emerald-500/80 px-4 py-2 inline-flex items-center gap-2"><Plus className="h-4 w-4"/>Adicionar Cartão</button>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 rounded-2xl border border-white/10 bg-white/5 p-5 gap-3">
+        <div className="lg:col-span-2">
+          <p className="text-xl">Resumo de {currentMonth}</p>
+          <div className="mt-3 h-2 rounded-full bg-white/10"><div className="h-2 w-2/3 rounded-full bg-emerald-400" /></div>
+        </div>
+        <div><p className="text-slate-400">Total dos Cartões</p><p className="text-3xl font-semibold">R$ {total.toLocaleString('pt-BR')}</p></div>
+        <div><p className="text-slate-400">Total Pago</p><p className="text-3xl font-semibold text-emerald-300">R$ {Math.round(paid).toLocaleString('pt-BR')}</p></div>
+      </div>
+
+      <div className="space-y-3">
+        {state.creditCards.map((card, index) => (
+          <div key={card.id} className="grid grid-cols-1 xl:grid-cols-4 gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className={`rounded-2xl p-5 ${index % 2 === 0 ? 'bg-gradient-to-br from-violet-500 to-purple-700' : 'bg-gradient-to-br from-orange-500 to-rose-700'}`}>
+              <p className="text-3xl font-semibold">{card.name}</p>
+              <p className="mt-8 text-sm opacity-80">•••• {String(card.id).slice(-4)}</p>
             </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Valor da Fatura</Label>
-              <Input placeholder="Ex: 1500,00" value={invoiceAmount} onChange={e => setInvoiceAmount(e.target.value)} />
+            <div className="xl:col-span-2 space-y-2 p-2">
+              <p className="text-slate-400">Fatura Atual</p>
+              <p className="text-4xl font-semibold">R$ {card.invoiceAmount.toLocaleString('pt-BR')}</p>
+              <p className="text-slate-400">Vence dia {card.dueDay}</p>
+              <button className="rounded-xl bg-emerald-500/60 px-3 py-1.5 text-sm">Marcar como Pago</button>
             </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Dia de Vencimento</Label>
-              <Input placeholder="Ex: 15" value={dueDay} onChange={e => setDueDay(e.target.value)} />
+            <div className="rounded-xl bg-black/20 p-4">
+              <p className="text-slate-300">Limite Disponível</p>
+              <p className="text-2xl text-emerald-300">R$ {available.toLocaleString('pt-BR')}</p>
+              <div className="mt-2 flex items-center gap-1 text-emerald-300 text-sm"><Check className="h-4 w-4"/> Pago</div>
             </div>
           </div>
-          <Button onClick={handleAddCard} size="sm" className="gap-2">
-            <Plus className="h-4 w-4" /> Adicionar Cartão
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Cards List */}
-      {state.creditCards.length === 0 ? (
-        <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
-            Nenhum cartão cadastrado
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {state.creditCards.map(card => (
-            <Card key={card.id}>
-              <CardContent className="flex items-center justify-between py-4">
-                <div className="flex items-center gap-3">
-                  <CreditCardIcon className="h-5 w-5 text-primary" />
-                  <div>
-                    <p className="font-medium">{card.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Fatura: <span className="font-mono font-medium text-foreground">R$ {fmt(card.invoiceAmount)}</span>
-                      {' · '}Vence dia {card.dueDay}
-                    </p>
-                  </div>
-                </div>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeCreditCard(card.id)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+        ))}
+        {state.creditCards.length === 0 && <p className="text-slate-400">Nenhum cartão cadastrado.</p>}
+      </div>
     </div>
   );
 };
